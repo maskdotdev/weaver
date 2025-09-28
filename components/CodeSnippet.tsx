@@ -1,18 +1,21 @@
 'use client'
 
-import { Fragment, useState, useEffect } from 'react'
-import { Highlight } from 'prism-react-renderer'
+import { Fragment, useState, useEffect, useRef } from 'react'
+import type { JSX } from 'react'
+import type { BundledLanguage } from 'shiki/bundle/web'
+import { highlight } from '@/lib/shiki/shared'
 import clsx from 'clsx'
 
-interface CodeSnippet {
+interface CodeSnippetItem {
   name: string
   code: string
   language: string
   isActive: boolean
+  initial?: JSX.Element | null
 }
 
 interface CodeSnippetProps {
-  snippets: CodeSnippet[]
+  snippets: CodeSnippetItem[]
   onTabChange?: (index: number) => void
   scrambleDuration?: number
 }
@@ -39,6 +42,10 @@ export function CodeSnippet({
   const [displayCode, setDisplayCode] = useState(
     snippets[activeIndex]?.code || '',
   )
+  const [nodes, setNodes] = useState<JSX.Element | null>(
+    snippets[activeIndex]?.initial ?? null,
+  )
+  const latestRequest = useRef(0)
 
   useEffect(() => {
     const activeSnippet = snippets[activeIndex]
@@ -82,6 +89,26 @@ export function CodeSnippet({
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [activeIndex, snippets, scrambleDuration])
+
+  useEffect(() => {
+    const currentSnippet = snippets[activeIndex]
+    if (!currentSnippet) return
+    // If server provided an initial highlighted tree for this snippet, use it once.
+    if (currentSnippet.initial && nodes == null) {
+      setNodes(currentSnippet.initial)
+      return
+    }
+
+    const reqId = ++latestRequest.current
+    void highlight(currentSnippet.code, currentSnippet.language as BundledLanguage)
+      .then((res) => {
+        if (latestRequest.current === reqId) setNodes(res)
+      })
+      .catch(() => {
+        if (latestRequest.current === reqId) setNodes(null)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, snippets])
 
   const handleTabClick = (index: number) => {
     if (index !== activeIndex) {
@@ -137,35 +164,20 @@ export function CodeSnippet({
             ))}
           </div>
           <div className="relative overflow-hidden">
-            <Highlight
-              code={displayCode}
-              language={currentSnippet.language}
-              theme={{ plain: {}, styles: [] }}
-            >
-              {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                <pre
-                  className={clsx(
-                    className,
-                    'flex overflow-x-auto pb-6 transition-opacity duration-200',
-                    isScrambling && 'opacity-70',
-                  )}
-                  style={style}
-                >
-                  <code className="px-4">
-                    {tokens.map((line, lineIndex) => (
-                      <div key={lineIndex} {...getLineProps({ line })}>
-                        {line.map((token, tokenIndex) => (
-                          <span
-                            key={tokenIndex}
-                            {...getTokenProps({ token })}
-                          />
-                        ))}
-                      </div>
-                    ))}
-                  </code>
-                </pre>
+            <pre
+              className={clsx(
+                'flex overflow-x-auto pb-6 transition-opacity duration-200',
+                isScrambling && 'opacity-70',
               )}
-            </Highlight>
+            >
+              <code className="px-4">
+                {isScrambling || !nodes ? (
+                  <>{displayCode}</>
+                ) : (
+                  nodes
+                )}
+              </code>
+            </pre>
           </div>
         </div>
       </div>
