@@ -45,3 +45,7 @@
     display: none;
   }
 }
+
+pre.shiki {
+  @apply text-white !bg-transparent;
+}

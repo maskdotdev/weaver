@@ -170,7 +170,7 @@ export function CodeSnippet({
                 isScrambling && 'opacity-70',
               )}
             >
-              <code className="px-4">
+              <code className="px-4 text-white">
                 {isScrambling || !nodes ? (
                   <>{displayCode}</>
                 ) : (
